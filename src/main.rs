@@ -6,7 +6,7 @@ use std::{
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use iced::{
     keyboard::{Event as KeyEvent, Key},
-    widget::{column, radio},
+    widget::{button, column, row},
     Element, Event, Subscription,
 };
 use num_traits::ToPrimitive;
@@ -63,7 +63,7 @@ impl WaveShape {
 #[derive(Debug, Default)]
 struct State {
     active_notes: HashSet<Decimal>,
-    wave_shape: Option<WaveShape>,
+    wave_shape: WaveShape,
 }
 
 impl App {
@@ -80,38 +80,20 @@ impl App {
                     state.active_notes.remove(&freq);
                 }
             }
-            Message::WaveShapeChanged(shape) => state.wave_shape = Some(shape),
+            Message::SineSelected => state.wave_shape = WaveShape::Sine,
+            Message::SawSelected => state.wave_shape = WaveShape::Saw,
+            Message::TriangleSelected => state.wave_shape = WaveShape::Triangle,
+            Message::SquareSelected => state.wave_shape = WaveShape::Square,
             Message::None => {}
         }
     }
     fn view(&'_ self) -> Element<'_, Message> {
-        let state = self.state.lock().unwrap();
-        column![
-            radio(
-                "Sine",
-                WaveShape::Sine,
-                state.wave_shape,
-                Message::WaveShapeChanged
-            ),
-            radio(
-                "Saw",
-                WaveShape::Saw,
-                state.wave_shape,
-                Message::WaveShapeChanged
-            ),
-            radio(
-                "Triangle",
-                WaveShape::Triangle,
-                state.wave_shape,
-                Message::WaveShapeChanged
-            ),
-            radio(
-                "Square",
-                WaveShape::Square,
-                state.wave_shape,
-                Message::WaveShapeChanged
-            ),
-        ]
+        column![row![
+            button("Sine").on_press(Message::SineSelected),
+            button("Saw").on_press(Message::SawSelected),
+            button("Triangle").on_press(Message::TriangleSelected),
+            button("Square").on_press(Message::SquareSelected),
+        ]]
         .into()
     }
     fn subscription(&self) -> Subscription<Message> {
@@ -127,7 +109,10 @@ impl App {
 enum Message {
     KeyPressed(Key),
     KeyReleased(Key),
-    WaveShapeChanged(WaveShape),
+    SineSelected,
+    SawSelected,
+    TriangleSelected,
+    SquareSelected,
     None,
 }
 
@@ -173,7 +158,7 @@ fn start_audio(state: Arc<Mutex<State>>) {
                     for sample in data.iter_mut() {
                         let mut acc = 0.0;
                         for freq in &voices {
-                            acc += state.wave_shape.unwrap_or_default().generate_sample(
+                            acc += state.wave_shape.generate_sample(
                                 sample_clock,
                                 freq.to_f32().unwrap(),
                                 sample_rate,
