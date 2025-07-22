@@ -6,7 +6,7 @@ use std::{
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use iced::{
     keyboard::{Event as KeyEvent, Key},
-    widget::{button, column, slider},
+    widget::{column, radio},
     Element, Event, Subscription,
 };
 use num_traits::ToPrimitive;
@@ -27,10 +27,43 @@ struct App {
     state: Arc<Mutex<State>>,
 }
 
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+enum WaveShape {
+    #[default]
+    Sine,
+    Triangle,
+    Saw,
+    Square,
+}
+
+impl WaveShape {
+    fn generate_sample(&self, sample_clock: f32, freq: f32, sample_rate: f32) -> f32 {
+        match self {
+            Self::Sine => (sample_clock * freq * 2.0 * std::f32::consts::PI / sample_rate).sin(),
+            Self::Saw => {
+                let phase = (sample_clock * freq / sample_rate) % 1.0;
+                2. * phase - 1.
+            }
+            Self::Square => {
+                let phase = (sample_clock * freq / sample_rate) % 1.0;
+                if phase < 0.5 {
+                    1.0
+                } else {
+                    -1.0
+                }
+            }
+            Self::Triangle => {
+                let phase = (sample_clock * freq / sample_rate) % 1.0;
+                4.0 * (phase - 0.5).abs() - 1.0
+            }
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct State {
     active_notes: HashSet<Decimal>,
-    wave: f32,
+    wave_shape: Option<WaveShape>,
 }
 
 impl App {
@@ -47,17 +80,37 @@ impl App {
                     state.active_notes.remove(&freq);
                 }
             }
-            Message::SliderChanged(value) => state.wave = value,
+            Message::WaveShapeChanged(shape) => state.wave_shape = Some(shape),
             Message::None => {}
         }
     }
     fn view(&'_ self) -> Element<'_, Message> {
         let state = self.state.lock().unwrap();
         column![
-            "Use o teclado QWERTY para tocar notas!",
-            "Teclas: A W S E D F T G Y H U J K",
-            button("fuck"),
-            slider(0.0..=100.0, state.wave, Message::SliderChanged)
+            radio(
+                "Sine",
+                WaveShape::Sine,
+                state.wave_shape,
+                Message::WaveShapeChanged
+            ),
+            radio(
+                "Saw",
+                WaveShape::Saw,
+                state.wave_shape,
+                Message::WaveShapeChanged
+            ),
+            radio(
+                "Triangle",
+                WaveShape::Triangle,
+                state.wave_shape,
+                Message::WaveShapeChanged
+            ),
+            radio(
+                "Square",
+                WaveShape::Square,
+                state.wave_shape,
+                Message::WaveShapeChanged
+            ),
         ]
         .into()
     }
@@ -74,7 +127,7 @@ impl App {
 enum Message {
     KeyPressed(Key),
     KeyReleased(Key),
-    SliderChanged(f32),
+    WaveShapeChanged(WaveShape),
     None,
 }
 
@@ -120,12 +173,11 @@ fn start_audio(state: Arc<Mutex<State>>) {
                     for sample in data.iter_mut() {
                         let mut acc = 0.0;
                         for freq in &voices {
-                            // saw
-                            let phase = (sample_clock * freq.to_f32().unwrap() / sample_rate) % 1.0;
-                            acc += 2. * phase - 1.;
-                            // sine
-                            // acc += (sample_clock * freq.to_f32().unwrap() * 2.0 * std::f32::consts::PI / sample_rate)
-                            //     .sin();
+                            acc += state.wave_shape.unwrap_or_default().generate_sample(
+                                sample_clock,
+                                freq.to_f32().unwrap(),
+                                sample_rate,
+                            );
                         }
 
                         *sample = if voices.is_empty() {
