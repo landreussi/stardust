@@ -9,8 +9,6 @@ use iced::{
     widget::{button, column, row},
     Element, Event, Subscription,
 };
-use num_traits::ToPrimitive;
-use rust_decimal::{dec, Decimal};
 
 fn main() -> iced::Result {
     iced::application("Stardust", App::update, App::view)
@@ -60,9 +58,46 @@ impl WaveShape {
     }
 }
 
+#[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Hash)]
+enum Note {
+    C4,
+    Csus4,
+    D4,
+    Dsus4,
+    E4,
+    F4,
+    Fsus4,
+    G4,
+    Gsus4,
+    A4,
+    Asus4,
+    B4,
+    C5,
+}
+
+impl Note {
+    fn freq(&self) -> f32 {
+        match self {
+            Self::C4 => 261.63,
+            Self::Csus4 => 277.18,
+            Self::D4 => 293.66,
+            Self::Dsus4 => 311.13,
+            Self::E4 => 329.63,
+            Self::F4 => 349.23,
+            Self::Fsus4 => 369.99,
+            Self::G4 => 392.00,
+            Self::Gsus4 => 415.30,
+            Self::A4 => 440.00,
+            Self::Asus4 => 466.16,
+            Self::B4 => 493.88,
+            Self::C5 => 523.25,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct State {
-    active_notes: HashSet<Decimal>,
+    active_notes: HashSet<Note>,
     wave_shape: WaveShape,
 }
 
@@ -71,13 +106,13 @@ impl App {
         let mut state = self.state.lock().unwrap();
         match message {
             Message::KeyPressed(key) => {
-                if let Some(freq) = key_to_freq(key) {
-                    state.active_notes.insert(freq);
+                if let Ok(note) = key.try_into() {
+                    state.active_notes.insert(note);
                 }
             }
             Message::KeyReleased(key) => {
-                if let Some(freq) = key_to_freq(key) {
-                    state.active_notes.remove(&freq);
+                if let Ok(ref note) = key.try_into() {
+                    state.active_notes.remove(note);
                 }
             }
             Message::SineSelected => state.wave_shape = WaveShape::Sine,
@@ -116,27 +151,31 @@ enum Message {
     None,
 }
 
-// Mapeia tecla para frequência da nota
-fn key_to_freq(key: Key) -> Option<Decimal> {
-    Some(match key {
-        Key::Character(char) => match char.as_str() {
-            "q" => dec!(261.63), // C4
-            "2" => dec!(277.18), // C#4
-            "w" => dec!(293.66), // D4
-            "3" => dec!(311.13), // D#4
-            "e" => dec!(329.63), // E4
-            "r" => dec!(349.23), // F4
-            "5" => dec!(369.99), // F#4
-            "t" => dec!(392.00), // G4
-            "6" => dec!(415.30), // G#4
-            "y" => dec!(440.00), // A4
-            "7" => dec!(466.16), // A#4
-            "u" => dec!(493.88), // B4
-            "i" => dec!(523.25), // C5
-            _ => return None,
-        },
-        _ => return None,
-    })
+impl TryFrom<Key> for Note {
+    // This is fine once we'll remap this result to an option.
+    type Error = ();
+
+    fn try_from(key: Key) -> Result<Self, Self::Error> {
+        Ok(match key {
+            Key::Character(char) => match char.as_str() {
+                "q" => Self::C4,
+                "2" => Self::Csus4,
+                "w" => Self::D4,
+                "3" => Self::Dsus4,
+                "e" => Self::E4,
+                "r" => Self::F4,
+                "5" => Self::Fsus4,
+                "t" => Self::G4,
+                "6" => Self::Gsus4,
+                "y" => Self::A4,
+                "7" => Self::Asus4,
+                "u" => Self::B4,
+                "i" => Self::C5,
+                _ => return Err(()),
+            },
+            _ => return Err(()),
+        })
+    }
 }
 
 fn start_audio(state: Arc<Mutex<State>>) {
@@ -153,22 +192,22 @@ fn start_audio(state: Arc<Mutex<State>>) {
                 &config.into(),
                 move |data: &mut [f32], _| {
                     let state = state.lock().unwrap();
-                    let voices: Vec<_> = state.active_notes.iter().map(|freq| *freq).collect();
+                    let notes: Vec<_> = state.active_notes.iter().collect();
 
                     for sample in data.iter_mut() {
                         let mut acc = 0.0;
-                        for freq in &voices {
+                        for note in &notes {
                             acc += state.wave_shape.generate_sample(
                                 sample_clock,
-                                freq.to_f32().unwrap(),
+                                note.freq(),
                                 sample_rate,
                             );
                         }
 
-                        *sample = if voices.is_empty() {
+                        *sample = if notes.is_empty() {
                             0.0
                         } else {
-                            acc / voices.len() as f32 * 0.2 // volume
+                            acc / notes.len() as f32 * 0.2 // volume
                         };
 
                         sample_clock += 1.0;
