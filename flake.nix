@@ -11,21 +11,21 @@
       let pkgs = nixpkgs.legacyPackages.${system};
       in {
         devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            cargo
-            cargo-watch
-            rustup
-            pkg-config
-            openssl
-            alsa-lib
-            libxkbcommon
-            xorg.libX11
+          buildInputs = with pkgs;
+            [
+              cargo
+              cargo-watch
+              rustup
+              pkg-config
+              openssl
+              libxkbcommon
+              xorg.libX11
 
-            # Vulkan
-            vulkan-loader
-            vulkan-headers
-            vulkan-tools
-          ];
+              # Vulkan
+              vulkan-loader
+              vulkan-headers
+              vulkan-tools
+            ] ++ lib.optionals stdenv.isLinux [ alsa-lib ];
 
           env = {
             LD_LIBRARY_PATH =
