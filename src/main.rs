@@ -6,12 +6,19 @@ use std::{
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use iced::{
     keyboard::{Event as KeyEvent, Key},
-    widget::{button, column, row},
-    Element, Event, Subscription,
+    mouse,
+    widget::{
+        button, canvas,
+        canvas::{Frame, Geometry, Path, Program, Stroke},
+        column, image, row,
+    },
+    Color, Element, Event, Point, Renderer, Size, Subscription, Theme,
 };
+use strum::{Display, EnumIter, IntoEnumIterator};
 
 fn main() -> iced::Result {
     iced::application("Stardust", App::update, App::view)
+        .theme(|_| Theme::Dracula)
         .subscription(App::subscription)
         .run_with(|| {
             let app = App::default();
@@ -58,40 +65,79 @@ impl WaveShape {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Hash, EnumIter, Display)]
 enum Note {
+    C3,
+    CSharp3,
+    D3,
+    DSharp3,
+    E3,
+    F3,
+    FSharp3,
+    G3,
+    GSharp3,
+    A3,
+    ASharp3,
+    B3,
     C4,
-    Csus4,
+    CSharp4,
     D4,
-    Dsus4,
+    DSharp4,
     E4,
     F4,
-    Fsus4,
+    FSharp4,
     G4,
-    Gsus4,
+    GSharp4,
     A4,
-    Asus4,
+    ASharp4,
     B4,
     C5,
+    CSharp5,
+    D5,
+    DSharp5,
+    E5,
+    F5,
 }
 
 impl Note {
     fn freq(&self) -> f32 {
         match self {
+            Self::C3 => 130.81,
+            Self::CSharp3 => 138.59,
+            Self::D3 => 146.83,
+            Self::DSharp3 => 155.56,
+            Self::E3 => 164.81,
+            Self::F3 => 174.61,
+            Self::FSharp3 => 185.00,
+            Self::G3 => 196.00,
+            Self::GSharp3 => 207.65,
+            Self::A3 => 220.00,
+            Self::ASharp3 => 233.08,
+            Self::B3 => 246.94,
             Self::C4 => 261.63,
-            Self::Csus4 => 277.18,
+            Self::CSharp4 => 277.18,
             Self::D4 => 293.66,
-            Self::Dsus4 => 311.13,
+            Self::DSharp4 => 311.13,
             Self::E4 => 329.63,
             Self::F4 => 349.23,
-            Self::Fsus4 => 369.99,
+            Self::FSharp4 => 369.99,
             Self::G4 => 392.00,
-            Self::Gsus4 => 415.30,
+            Self::GSharp4 => 415.30,
             Self::A4 => 440.00,
-            Self::Asus4 => 466.16,
+            Self::ASharp4 => 466.16,
             Self::B4 => 493.88,
             Self::C5 => 523.25,
+            Self::CSharp5 => 554.37,
+            Self::D5 => 587.33,
+            Self::DSharp5 => 622.25,
+            Self::E5 => 659.25,
+            Self::F5 => 698.46,
         }
+    }
+
+    fn major_notes() -> impl Iterator<Item = Self> {
+        let is_major = |note: &Self| !note.to_string().contains("Sharp");
+        Self::iter().filter(is_major)
     }
 }
 
@@ -99,6 +145,60 @@ impl Note {
 struct State {
     active_notes: HashSet<Note>,
     wave_shape: WaveShape,
+}
+
+struct Piano;
+
+impl<Message> Program<Message> for Piano {
+    type State = State;
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &Renderer,
+        _theme: &Theme,
+        _bounds: iced::Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<Geometry<Renderer>> {
+        let mut frame = Frame::new(
+            renderer,
+            Size {
+                width: 4000.,
+                height: 150.,
+            },
+        );
+        let white_key_width = 30.;
+        let white_key_height = frame.height();
+        let black_key_width = 15.;
+        let black_key_height = white_key_height * 0.6;
+
+        let white_keys = Note::major_notes().count();
+        let black_key_indices = [0, 1, 3, 4, 5, 7, 8]; // Relative positions in octave
+
+        // Draw white keys
+        for i in 0..white_keys {
+            let x = i as f32 * white_key_width;
+            let rect = Path::rectangle(
+                Point::new(x, 0.0),
+                Size::new(white_key_width, white_key_height),
+            );
+            frame.fill(&rect, Color::WHITE);
+            frame.stroke(&rect, Stroke::default().with_color(Color::BLACK));
+        }
+
+        // Draw black keys (except where there's no black key)
+        for i in 0..2 {
+            for &pos in &black_key_indices {
+                let x = ((i * 7 + pos) as f32 + 1.0) * white_key_width - black_key_width / 2.0;
+                let rect = Path::rectangle(
+                    Point::new(x, 0.0),
+                    Size::new(black_key_width, black_key_height),
+                );
+                frame.fill(&rect, Color::BLACK);
+            }
+        }
+
+        vec![frame.into_geometry()]
+    }
 }
 
 impl App {
@@ -122,13 +222,18 @@ impl App {
             Message::None => {}
         }
     }
+
     fn view(&'_ self) -> Element<'_, Message> {
-        column![row![
-            button("Sine").on_press(Message::SineSelected),
-            button("Saw").on_press(Message::SawSelected),
-            button("Triangle").on_press(Message::TriangleSelected),
-            button("Square").on_press(Message::SquareSelected),
-        ]]
+        column![
+            image("stardust.png"),
+            row![
+                button("Sine").on_press(Message::SineSelected),
+                button("Saw").on_press(Message::SawSelected),
+                button("Triangle").on_press(Message::TriangleSelected),
+                button("Square").on_press(Message::SquareSelected),
+            ],
+            canvas(Piano)
+        ]
         .into()
     }
     fn subscription(&self) -> Subscription<Message> {
@@ -152,25 +257,42 @@ enum Message {
 }
 
 impl TryFrom<Key> for Note {
-    // This is fine once we'll remap this result to an option.
+    // This is fine once we'll ignore the error.
     type Error = ();
 
     fn try_from(key: Key) -> Result<Self, Self::Error> {
         Ok(match key {
             Key::Character(char) => match char.as_str() {
+                "z" => Self::C3,
+                "s" => Self::CSharp3,
+                "x" => Self::D3,
+                "d" => Self::DSharp3,
+                "c" => Self::E3,
+                "v" => Self::F3,
+                "g" => Self::FSharp3,
+                "b" => Self::G3,
+                "h" => Self::GSharp3,
+                "n" => Self::A3,
+                "j" => Self::ASharp3,
+                "m" => Self::B3,
                 "q" => Self::C4,
-                "2" => Self::Csus4,
+                "2" => Self::CSharp4,
                 "w" => Self::D4,
-                "3" => Self::Dsus4,
+                "3" => Self::DSharp4,
                 "e" => Self::E4,
                 "r" => Self::F4,
-                "5" => Self::Fsus4,
+                "5" => Self::FSharp4,
                 "t" => Self::G4,
-                "6" => Self::Gsus4,
+                "6" => Self::GSharp4,
                 "y" => Self::A4,
-                "7" => Self::Asus4,
+                "7" => Self::ASharp4,
                 "u" => Self::B4,
                 "i" => Self::C5,
+                "9" => Self::CSharp5,
+                "o" => Self::D5,
+                "0" => Self::DSharp5,
+                "p" => Self::E5,
+                "[" => Self::F5,
                 _ => return Err(()),
             },
             _ => return Err(()),

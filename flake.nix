@@ -13,13 +13,25 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             cargo
-            cargo-watch
             rustup
             pkg-config
             openssl
             alsa-lib
             libxkbcommon
+
+            # X11 support
             xorg.libX11
+            xorg.libXcursor
+            xorg.libXrandr
+            xorg.libXi
+            xorg.libXext
+            xorg.libXfixes
+            xorg.libXrender
+            xorg.libXinerama
+            xorg.libXtst
+            xorg.xkbutils
+            xorg.xkeyboardconfig
+            xorg.xcbutilwm
 
             # Vulkan
             vulkan-loader

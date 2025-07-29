@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 cpal = "0.16.0"
-iced = { version = "0.13.1", features = ["tokio", "wgpu"] }
+iced = { version = "0.13.1", features = ["tokio", "wgpu", "canvas", "image-without-codecs"] }
+strum = { version = "0.27.2", features = ["derive", "strum_macros"] }
